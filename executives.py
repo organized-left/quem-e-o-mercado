@@ -1,29 +1,44 @@
-# Executive_pay
 
-# pip3 install pandas
-# python3 -m pip install googlesearch-python
+'''
+Get The excutives names from a list of Tickers
 
+# Setup
+pip install pandas
+pip install numpy
+python3 -m pip install googlesearch-python
+'''
 
 import pandas as pd
 from googlesearch import search
 import yfinance as yf
+import yaml
+import numpy as np
+import json
 
 
 def get_executives(symbol):
     # search on yahoo finances for executive names
     url = f'https://finance.yahoo.com/quote/{symbol}/profile?p={symbol}'
-    df = pd.read_html(url)[0]
+    print(f'>> loading ${symbol} from ${url}')
+    profile = pd.read_html(url)
+    df = profile[0]
+    df = df.replace(np.nan, 0)
 
     executives = []
     for i in df.index:
-        name = df['Name'][i].replace("Mr. ", '')
+        name = df['Name'][i].replace("Mr. ", '')  # removing all the "Mr."
+        name = name.replace("Ms. ", '')  # removing all the "Ms."
         title = df['Title'][i]
         year_born = df['Year Born'][i]
+        if pd.isna(year_born):
+            year_born = -1
+
         age2021 = 2021 - df['Year Born'][i]
         pay = df["Pay"][i]
         if pd.isna(pay):
-            pay = None
-
+            pay = -1
+        else:
+            pay = float(pay)
         google_links = search(name)
         profile = {}
 
@@ -40,8 +55,8 @@ def get_executives(symbol):
         person = {
             "name": name,
             "title": title,
-            "year_born": year_born,
-            "age2021": age2021,
+            "year_born": int(year_born),
+            "age2021": int(age2021),
             "pay": pay,
             "profile": profile
         }
@@ -58,7 +73,7 @@ if __name__ == "__main__":
         },
         {
             "name": "Itau Unibanco Holding SA",
-            "symbol": "ITUB4:BZ"
+            "symbol": "ITUB4.SA"
         },
         {
             "name": "Banco Bradesco S.A.",
@@ -121,5 +136,23 @@ if __name__ == "__main__":
             "symbol": "MGLU3.SA"
         },
     ]
-    executives = get_executives("ITUB4.SA")
-    print(executives)
+
+    result = []
+
+    for company in companies:
+        try:
+            company["executives"] = get_executives(company['symbol'])
+            result.append(company)
+
+        except(RuntimeError, TypeError, NameError):
+            print(f'can\'t load company {company["name"]}')
+            print(RuntimeError)
+            continue
+
+    # exporting yaml
+    with open(r'excutives.yaml', 'w') as file:
+        documents = yaml.dump(result, file, sort_keys=False)
+
+    # export json
+    with open(r'executives.json', 'w') as file:
+        json.dump(result, file, sort_keys=False)
